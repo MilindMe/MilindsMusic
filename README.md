@@ -1,4 +1,6 @@
-# Side A
+# MilindsMusic — Side A
+
+An interactive website that tells you a bit more about me.
 
 A quiet 3D record shop with an expanding navigation rail, built with React, Vite, and Three.js.
 
