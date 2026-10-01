@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 
-export default function MemoriesScene({reset,onStatus}) {
+export default function MemoriesScene({reset,onStatus,onProgress}) {
  const host=useRef(null), dots=useRef(null), api=useRef(null);
  useEffect(()=>{api.current?.reset();},[reset]);
  useEffect(()=>{
@@ -59,12 +59,13 @@ export default function MemoriesScene({reset,onStatus}) {
   renderer.domElement.addEventListener('keydown',key);renderer.domElement.addEventListener('webglcontextlost',lost);
   controls.addEventListener('change',render);api.current={reset:resetView};
   function disposeModel(root){root.traverse(o=>{o.geometry?.dispose();for(const m of o.material?(Array.isArray(o.material)?o.material:[o.material]):[]){for(const value of Object.values(m))if(value?.isTexture)value.dispose();m.dispose();}});}
-  new GLTFLoader().load('/models/psp.glb',gltf=>{
+  const manager=new THREE.LoadingManager();manager.onProgress=(_url,loaded,total)=>{if(!disposed)onProgress?.(loaded/total);};
+  new GLTFLoader(manager).load('/models/psp.glb',gltf=>{
    if(disposed){disposeModel(gltf.scene);return;}
    gltf.scene.rotation.z=-.10;scene.add(gltf.scene);render();onStatus('ready');
   },undefined,()=>{if(!disposed)onStatus('error');});
   resetView();
   return()=>{disposed=true;cancelAnimationFrame(frame);api.current=null;resize.disconnect();controls.dispose();element.removeEventListener('pointermove',move);element.removeEventListener('pointerleave',leave);renderer.domElement.removeEventListener('keydown',key);renderer.domElement.removeEventListener('webglcontextlost',lost);disposeModel(scene);environment.dispose();renderer.dispose();renderer.domElement.remove();};
- },[onStatus]);
+ },[onStatus,onProgress]);
  return <div className="memories-stage" ref={host}><div className="memory-slash" aria-hidden="true"/><canvas ref={dots} className="memory-dots" aria-hidden="true"/></div>;
 }

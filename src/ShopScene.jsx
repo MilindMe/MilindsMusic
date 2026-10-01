@@ -3,134 +3,300 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {records, recordSlots} from './data';
+import {projects} from './projects';
 
-// All dimensions are in meters. The supplied sleeve meshes retain their UVs.
-export default function ShopScene({onSelect, selected, reset, onStatus}) {
- const host = useRef(null);
- const api = useRef(null);
- const select = useRef(onSelect);
- select.current = onSelect;
- useEffect(() => { api.current?.reset(); }, [reset]);
- useEffect(() => { api.current?.select(selected); }, [selected]);
- useEffect(() => {
-  const element = host.current;
+// Layout and rest transforms belong to authoring/music-store.blend.
+// Stable entityId properties bind the exported objects to website behaviors.
+export default function ShopScene({onSelect, selected, reset, onStatus, onProgress, view='home', animateTransition=false, onTransitionComplete, onGlobePhase, onGlobeComplete}) {
+ const host=useRef(null),api=useRef(null),select=useRef(onSelect),viewRef=useRef(view);
+ const globeCallbacks=useRef({onGlobePhase,onGlobeComplete});globeCallbacks.current={onGlobePhase,onGlobeComplete};
+ const transition=useRef({animateTransition,onTransitionComplete});
+ transition.current={animateTransition,onTransitionComplete};
+ select.current=onSelect;viewRef.current=view;
+ useEffect(()=>{api.current?.view(view);},[view]);
+ useEffect(()=>{api.current?.reset();},[reset]);
+ useEffect(()=>{api.current?.select(selected);},[selected]);
+ useEffect(()=>{
+  const element=host.current;
   let renderer;
-  try { renderer = new THREE.WebGLRenderer({antialias:true, alpha:true}); }
-  catch { onStatus('error'); return; }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}
+  catch{onStatus('error');return;}
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
   renderer.domElement.setAttribute('aria-hidden','true');
-  element.appendChild(renderer.domElement);
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog('#304639', 5, 12);
-  const camera = new THREE.PerspectiveCamera(34, 1, .01, 30);
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enablePan = false;
-  controls.enableZoom = false;
-  controls.enableDamping = false;
-  controls.minAzimuthAngle = -.3;
-  controls.maxAzimuthAngle = .3;
-  controls.minPolarAngle = .65;
-  controls.maxPolarAngle = 1.22;
-  controls.rotateSpeed = .35;
-  renderer.domElement.style.touchAction = 'pan-y';
-  // Reserve vertical gestures for scrolling the page on small screens.
-  controls.touches.ONE = THREE.TOUCH.ROTATE;
-  const crates = [], sleeves = [], materials = new Set(), textures = new Set();
-  let disposed=false, frame=0, hovered=-1, active=selected, down=null;
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const render = () => {if(!disposed){renderer.render(scene,camera);sleeves.forEach((s,i)=>{const button=element.querySelector(`[data-sleeve="${i}"]`);if(button){const p=s.localToWorld(new THREE.Vector3(0,.17/s.scale.x,0)).project(camera);button.style.left=`${(p.x+1)*element.clientWidth/2}px`;button.style.top=`${(1-p.y)*element.clientHeight/2}px`;}});}};
-  const material=(color,roughness=.85)=>{const m=new THREE.MeshStandardMaterial({color,roughness});materials.add(m);return m;};
-  const wood=material('#856343'), edge=material('#ad8658'), dark=material('#3c3023'), wall=material('#354b3e'), floor=material('#304639');
-  function box(w,h,d,mat,x,y,z,parent=scene){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
-  const grainCanvas=document.createElement('canvas');grainCanvas.width=256;grainCanvas.height=256;
-  const ctx=grainCanvas.getContext('2d');ctx.fillStyle='#c1ab89';ctx.fillRect(0,0,256,256);
-  for(let i=0;i<160;i++){const y=(i*47)%256;ctx.strokeStyle=`rgba(62,40,21,${.03+(i%5)*.014})`;ctx.lineWidth=.3+(i%3)*.3;ctx.beginPath();ctx.moveTo(0,y);ctx.bezierCurveTo(85,y-2,170,y+3,256,y);ctx.stroke();}
-  const grain=new THREE.CanvasTexture(grainCanvas);grain.colorSpace=THREE.SRGBColorSpace;grain.wrapS=grain.wrapT=THREE.RepeatWrapping;grain.repeat.set(2,1);wood.map=grain;edge.map=grain;textures.add(grain);
+  renderer.domElement.style.touchAction='pan-y';element.appendChild(renderer.domElement);
+  const scene=new THREE.Scene();scene.fog=new THREE.Fog('#304639',5,30);
+  const camera=new THREE.PerspectiveCamera(34,1,.01,100);
+  const controls=new OrbitControls(camera,renderer.domElement);
+  controls.enablePan=false;controls.enableZoom=false;controls.enableDamping=false;
+  controls.minAzimuthAngle=-.3;controls.maxAzimuthAngle=.3;
+  controls.rotateSpeed=.35;controls.touches.ONE=THREE.TOUCH.ROTATE;
   scene.add(new THREE.HemisphereLight('#f5ecd7','#4b5841',1.8));
-  const sun = new THREE.DirectionalLight('#ffe4be',2.3);
-  sun.position.set(-2.5,4,3);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-3;sun.shadow.camera.right=3;sun.shadow.camera.top=3;sun.shadow.camera.bottom=-3;sun.shadow.normalBias=.025;sun.shadow.bias=-.0002;sun.shadow.radius=4;scene.add(sun);
-  const fill=new THREE.DirectionalLight('#b8d2c3',.7);fill.position.set(3,2,-1);scene.add(fill);
-  box(18,.08,16,floor,0,-.12,0);
-  // A quiet shop backdrop, deliberately subordinate to the real record artwork.
-  box(12,5,.1,wall,0,2,-2.1);
-  for(let x=-5;x<6;x+=.62)box(.012,5,.018,material('#3c5143'),x,2,-2.03);
-  const shelfWood=material('#705b40');
-  for(const x of [-1.55,1.55]) {
-   box(1.1,.045,.25,shelfWood,x,.75,-1.86);
-   box(1.1,.045,.25,shelfWood,x,1.38,-1.86);
-   const colors=['#aa744f','#b0a17a','#697e70','#c1b891','#60665a','#7e5745'];
-   for(let row=0;row<2;row++)for(let i=0;i<20;i++) {
-    box(.035,.26+(i%3)*.015,.19,material(colors[(i+row)%colors.length]),x-.47+i*.048,.9+row*.63,-1.87);
+  const sun=new THREE.DirectionalLight('#ffe4be',2.3);
+  sun.position.set(-2.5,4,3);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+  Object.assign(sun.shadow.camera,{left:-3,right:3,top:3,bottom:-3});
+  sun.shadow.normalBias=.025;sun.shadow.bias=-.0002;sun.shadow.radius=4;scene.add(sun);
+  const fill=new THREE.DirectionalLight('#b8d2c3',1.4);fill.position.set(3,2,3);scene.add(fill);
+
+  const entities=new Map(),instruments=[],sleeves=[],viewGroups=[];
+  const materials=new Set(),textures=new Set(),geometries=new Set();
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  let disposed=false,failed=false,loaded=false,frame=0,cameraFrame=0,travelling=false;
+  let hovered=-1,active=selected,down=null,currentView=viewRef.current;
+  let globe=null,globeAnchor=null,globeTimer=0,globeJourney=false;
+  const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
+
+  function register(root){
+   root.traverse(node=>{
+    if(!node.isMesh)return;
+    node.castShadow=true;node.receiveShadow=true;geometries.add(node.geometry);
+    for(const material of Array.isArray(node.material)?node.material:[node.material]){
+     materials.add(material);
+     for(const value of Object.values(material))if(value?.isTexture){
+      value.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());textures.add(value);
+     }
+    }
+   });
+  }
+  function visible(node){for(let p=node;p;p=p.parent)if(!p.visible)return false;return true;}
+  function placeButton(entry,selector,anchor){
+   const button=element.querySelector(selector);if(!button)return;
+   const point=entry.node.localToWorld(anchor.clone()).project(camera);
+   button.hidden=!visible(entry.node)||point.z>1||point.z< -1;
+   button.style.left=`${(point.x+1)*element.clientWidth/2}px`;
+   button.style.top=`${(1-point.y)*element.clientHeight/2}px`;
+  }
+  function render(){
+   if(disposed)return;
+   scene.updateMatrixWorld(true);renderer.render(scene,camera);
+   instruments.forEach((entry,i)=>placeButton(entry,`[data-guitar="${i}"]`,currentView==='home'?entry.lowerAnchor:entry.anchor));
+   sleeves.forEach((entry,i)=>placeButton(entry,`[data-sleeve="${i}"]`,entry.anchor));
+   if(globe){
+    const anchor=globeAnchor??globe.worldToLocal(new THREE.Box3().setFromObject(globe).getCenter(new THREE.Vector3()));
+    placeButton({node:globe},'[data-globe]',anchor);
+    const beacon=element.querySelector('.mauritius-beacon');
+    const point=globe.localToWorld(anchor.clone()).project(camera);
+    beacon.hidden=!globeJourney||!visible(globe)||point.z>1;
+    beacon.style.left=`${(point.x+1)*element.clientWidth/2}px`;beacon.style.top=`${(1-point.y)*element.clientHeight/2}px`;
    }
   }
-  // One shared counter grounds all three crates.
-  box(2.6,.08,.95,wood,0,-.035,.03);
-  box(2.55,.035,.025,edge,0,-.06,.515);
-  for(let i=0;i<3;i++) {
-   const group=new THREE.Group();group.position.set((i-1)*.76,.012,0);group.rotation.y=(i-1)*-.08;group.userData.crate=i;
-   scene.add(group);crates.push(group);
-   box(.53,.035,.55,dark,0,.018,0,group);
-   for(const x of [-.26,.26]) {
-    box(.035,.27,.56,wood,x,.145,0,group);
-    box(.043,.025,.575,edge,x,.285,0,group);
-   }
-   for(const z of [-.265,.265])for(let j=0;j<3;j++)box(.53,.063,.027,j===2?edge:wood,0,.065+j*.079,z,group);
-   for(const x of [-.215,.215])box(.025,.255,.012,dark,x,.15,.285,group);
-   // Paper label, without baking any website text into the model.
-   box(.19,.065,.004,material('#d8c49a'),0,.145,.285,group);
+  function anchors(node){
+   const bounds=new THREE.Box3().setFromObject(node),center=bounds.getCenter(new THREE.Vector3());
+   const lower=center.clone();lower.y=bounds.min.y+(bounds.max.y-bounds.min.y)*.22;
+   return {anchor:node.worldToLocal(center),lowerAnchor:node.worldToLocal(lower)};
   }
-  const raycaster=new THREE.Raycaster(), pointer=new THREE.Vector2();
-  function hit(e){const r=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const h=raycaster.intersectObjects(crates,true)[0];if(!h)return -1;let p=h.object;while(p&&p.userData.sleeve===undefined)p=p.parent;return p?.userData.sleeve??-1;}
+  function glow(){
+   instruments.forEach((entry,i)=>{
+    const enabled=hovered===100+i||active===projects[i].id;
+    entry.halos.forEach(m=>{m.opacity=enabled?.15:0;});
+    entry.surfaces.forEach(({material,color,intensity})=>{
+     material.emissive.copy(enabled?new THREE.Color('#d4b87e'):color);
+     material.emissiveIntensity=enabled?.012:intensity;
+    });
+   });
+  }
   function update(){
-   cancelAnimationFrame(frame);
-   const tick=()=>{let moving=false;sleeves.forEach((c,i)=>{const y=c.userData.restY+((i===active||i===hovered)?.10:0);const delta=y-c.position.y;c.position.y+=reduced.matches?delta:delta*.16;if(Math.abs(delta)>.0002)moving=true;});render();if(moving)frame=requestAnimationFrame(tick);};
+   glow();cancelAnimationFrame(frame);
+   const tick=()=>{
+    let moving=false;
+    sleeves.forEach((entry,i)=>{
+     const target=entry.rest.clone();if(i===hovered||i===active)target.add(entry.lift);
+     const distance=entry.node.position.distanceTo(target);
+     entry.node.position.lerp(target,reduced.matches?1:.16);
+     if(distance>.0002)moving=true;
+    });
+    render();if(moving)frame=requestAnimationFrame(tick);
+   };
    tick();
   }
-  function move(e){if(e.buttons)return;const next=hit(e);if(next!==hovered){hovered=next;renderer.domElement.style.cursor=next<0?'grab':'pointer';update();}}
+  function hit(event){
+   const rect=renderer.domElement.getBoundingClientRect();
+   pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);
+   raycaster.setFromCamera(pointer,camera);
+   let node=raycaster.intersectObjects(scene.children,true).find(hit=>visible(hit.object))?.object;
+   while(node){
+    if(currentView==='home'&&node===globe)return 1000;
+    if(node.userData.runtimeGuitar!==undefined)return 100+node.userData.runtimeGuitar;
+    if(currentView==='home'&&node.userData.runtimeSleeve!==undefined)return node.userData.runtimeSleeve;
+    node=node.parent;
+   }
+   return -1;
+  }
+  function choose(index){
+   if(index===1000){startGlobe();return;}
+   cancelGlobe();
+   if(index>=100){if(currentView==='home')location.hash='projects';else select.current(projects[index-100].id);}
+   else if(index>=0)select.current(index);
+  }
+  function move(event){if(event.buttons)return;const next=hit(event);if(next!==hovered){hovered=next;renderer.domElement.style.cursor=next<0?'grab':'pointer';update();}}
   function leave(){hovered=-1;update();}
-  function pointerDown(e){down={x:e.clientX,y:e.clientY};}
-  function pointerUp(e){if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<7){const index=hit(e);if(index>=0){element.querySelector(`[data-sleeve="${index}"]`)?.focus({preventScroll:true});select.current(index);}}down=null;}
-  renderer.domElement.addEventListener('pointermove',move);
-  renderer.domElement.addEventListener('pointerleave',leave);
-  renderer.domElement.addEventListener('pointerdown',pointerDown);
-  renderer.domElement.addEventListener('pointerup',pointerUp);
-  renderer.domElement.addEventListener('webglcontextlost',contextLost);
-  function contextLost(e){e.preventDefault();onStatus('error');}
-  function resetView(){const distance=Math.max(3.1,1.5/(Math.tan(THREE.MathUtils.degToRad(17))*camera.aspect));camera.position.set(0,distance*.5,distance);scene.fog.near=distance+2;scene.fog.far=distance+12;controls.target.set(0,.2,0);controls.update();render();}
-  const resize=new ResizeObserver(()=>{camera.aspect=element.clientWidth/element.clientHeight;camera.updateProjectionMatrix();renderer.setSize(element.clientWidth,element.clientHeight);resetView();});resize.observe(element);
-  controls.addEventListener('change',render);
-  api.current={reset:resetView,select:i=>{active=i;update();},hover:i=>{hovered=i;update();}};
-  function disposeModel(root){root.traverse(o=>{if(o.isMesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const value of Object.values(m))if(value?.isTexture)value.dispose();m.dispose();}}});}
-  new GLTFLoader().load('/models/vinyl-sleeves.glb',gltf=>{
-   if(disposed){disposeModel(gltf.scene);return;}
-   const originals=[...gltf.scene.children];
-   recordSlots.forEach((recordId,i)=>{
-    const mesh=originals[i%originals.length];
-    // Preserve exported orientation by carrying its world transform into a group.
-    gltf.scene.updateMatrixWorld(true);
-    const wrapper=new THREE.Group();const clone=mesh.clone();clone.applyMatrix4(mesh.parent.matrixWorld);wrapper.add(clone);
-    const bounds=new THREE.Box3().setFromObject(wrapper), center=bounds.getCenter(new THREE.Vector3());
-    clone.position.sub(center);const size=bounds.getSize(new THREE.Vector3());wrapper.scale.setScalar(.42/Math.max(size.x,size.y));
-    wrapper.userData.sleeve=i;wrapper.userData.restY=.255+(5-i%6)*.014;
-    wrapper.position.set(0,wrapper.userData.restY,-.19+(i%6)*.071);wrapper.rotation.x=-.10+(i%6)*.012;
-    const record=records.find(r=>r.id===recordId);
-    if(record?.cover){
-     const map=new THREE.TextureLoader().load(record.cover,texture=>{if(disposed){texture.dispose();return;}render();});map.colorSpace=THREE.SRGBColorSpace;textures.add(map);
-     const mat=new THREE.MeshStandardMaterial({map,roughness:.8,side:THREE.DoubleSide});materials.add(mat);
-     const cover=new THREE.Mesh(new THREE.PlaneGeometry(size.x,size.y),mat);cover.position.z=size.z/2+.001/wrapper.scale.x;wrapper.add(cover);
-    }
-    crates[Math.floor(i/6)%3].add(wrapper);sleeves.push(wrapper);
-    clone.traverse(part=>{if(!part.isMesh)return;part.castShadow=true;part.receiveShadow=true;
-    for(const m of Array.isArray(part.material)?part.material:[part.material]){materials.add(m);m.side=THREE.DoubleSide;for(const v of Object.values(m))if(v?.isTexture){v.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());textures.add(v);}}});
+  function pointerDown(event){down={x:event.clientX,y:event.clientY};}
+  function pointerUp(event){
+   if(down&&Math.hypot(event.clientX-down.x,event.clientY-down.y)<7){
+    const index=hit(event);
+    if(index>=0){element.querySelector(index===1000?'[data-globe]':index>=100?`[data-guitar="${index-100}"]`:`[data-sleeve="${index}"]`)?.focus({preventScroll:true});choose(index);}
+   }
+   down=null;
+  }
+  function contextLost(event){event.preventDefault();cancelGlobe();onStatus('error');}
+  const events={pointermove:move,pointerleave:leave,pointerdown:pointerDown,pointerup:pointerUp,webglcontextlost:contextLost};
+  Object.entries(events).forEach(([name,fn])=>renderer.domElement.addEventListener(name,fn));
+
+  function destination(){
+   const marker=entities.get(`camera_${currentView}`),targetMarker=entities.get(`target_${currentView}`);
+   if(!marker||!targetMarker)return {position:new THREE.Vector3(0,1.55,3.1),target:new THREE.Vector3(0,.2,0),fov:34};
+   const position=marker.getWorldPosition(new THREE.Vector3()),target=targetMarker.getWorldPosition(new THREE.Vector3());
+   const offset=position.clone().sub(target),distance=offset.length();
+   const fov=marker.isPerspectiveCamera?marker.fov:34;
+   const fitDistance=Number(marker.userData.fitWidth)/(2*Math.tan(THREE.MathUtils.degToRad(fov/2))*camera.aspect);
+   // Keep the authored view at wide sizes; pull back along its viewing direction on phones.
+   position.copy(target).add(offset.multiplyScalar(Math.max(1,fitDistance/Math.max(distance,.01))));
+   return {position,target,fov};
+  }
+  function setView(){
+   viewGroups.forEach(node=>{node.visible=node.userData.visibleIn.split(',').map(v=>v.trim()).includes(currentView);});
+   const d=destination(),direction=new THREE.Spherical().setFromVector3(d.position.clone().sub(d.target));
+   controls.minAzimuthAngle=direction.theta-.3;controls.maxAzimuthAngle=direction.theta+.3;
+   controls.minPolarAngle=Math.max(.01,direction.phi-.25);controls.maxPolarAngle=Math.min(Math.PI-.01,direction.phi+.2);
+  }
+  function resetView(){
+   cancelGlobe();
+   cancelAnimationFrame(cameraFrame);controls.enabled=true;setView();const d=destination();
+   camera.position.copy(d.position);camera.fov=d.fov;controls.target.copy(d.target);
+   camera.far=Math.max(100,d.position.distanceTo(d.target)+40);camera.updateProjectionMatrix();
+   scene.fog.near=d.position.distanceTo(d.target)+2;scene.fog.far=scene.fog.near+12;
+   controls.update();render();
+  }
+  function changeView(next){
+   if(next===currentView)return;
+   cancelGlobe();currentView=next;hovered=-1;active=null;update();cancelAnimationFrame(cameraFrame);
+   if(!loaded||!transition.current.animateTransition){travelling=false;resetView();return;}
+   if(reduced.matches){resetView();transition.current.onTransitionComplete?.(next);return;}
+   flyCamera(destination(),next==='projects',next==='projects'?540:600,()=>{
+    transition.current.onTransitionComplete?.(next);
+    // Let the splash cover the final teleport frame before restoring the authored view.
+    cameraFrame=requestAnimationFrame(()=>{cameraFrame=requestAnimationFrame(()=>{travelling=false;resetView();});});
    });
-   onStatus('ready');render();
-  },undefined,()=>{if(!disposed)onStatus('error');});
+  }
+  function flyCamera(to,entering,duration,onComplete,exactLanding=false){
+   travelling=true;
+   const from=camera.position.clone(),fromTarget=controls.target.clone(),fromFov=camera.fov,start=performance.now();
+   const landing=exactLanding?to.position:entering?to.position.clone().lerp(to.target,.42):to.position.clone().add(to.position.clone().sub(to.target).multiplyScalar(.12));
+   controls.enabled=false;controls.minAzimuthAngle=-Infinity;controls.maxAzimuthAngle=Infinity;controls.minPolarAngle=0;controls.maxPolarAngle=Math.PI;
+   function tick(now){
+    const t=Math.min(1,(now-start)/duration),ease=entering?t*t*t:1-Math.pow(1-t,2.5);
+    camera.position.lerpVectors(from,landing,ease);controls.target.lerpVectors(fromTarget,to.target,ease);
+    camera.fov=THREE.MathUtils.lerp(fromFov,to.fov,ease)+Math.sin(Math.PI*t)*(entering?22:16);
+    camera.updateProjectionMatrix();scene.fog.near=camera.position.distanceTo(controls.target)+2;scene.fog.far=scene.fog.near+12;
+    controls.update();render();
+    if(t<1)cameraFrame=requestAnimationFrame(tick);else onComplete();
+   }
+   cancelAnimationFrame(cameraFrame);cameraFrame=requestAnimationFrame(tick);
+  }
+  function cancelGlobe(){
+   clearTimeout(globeTimer);
+   if(!globeJourney)return;
+   globeJourney=false;travelling=false;cancelAnimationFrame(cameraFrame);controls.enabled=true;
+   globeCallbacks.current.onGlobePhase?.(null);
+   const beacon=element.querySelector('.mauritius-beacon');if(beacon)beacon.hidden=true;
+  }
+  function startGlobe(){
+   if(!loaded||!globe||currentView!=='home'||globeJourney||travelling)return;
+   // Prefer an authored Mauritius marker. Otherwise use the described lower-right region.
+   const authored=entities.get('mauritius');
+   if(authored)globeAnchor=globe.worldToLocal(authored.getWorldPosition(new THREE.Vector3()));
+   else{
+    const bounds=new THREE.Box3().setFromObject(globe),size=bounds.getSize(new THREE.Vector3());
+    const point=bounds.getCenter(new THREE.Vector3());point.y=bounds.max.y-size.y*.29;
+    const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
+    const face=camera.position.clone().sub(point).normalize();
+    point.addScaledVector(right,size.x*.2).addScaledVector(up,-size.y*.12).addScaledVector(face,size.x*.36);
+    globeAnchor=globe.worldToLocal(point);
+   }
+   globeJourney=true;controls.enabled=false;hovered=-1;active=null;update();
+   globeCallbacks.current.onGlobePhase?.('locating');
+   globeTimer=setTimeout(()=>{
+    if(disposed||!globeJourney)return;
+    if(reduced.matches){globeCallbacks.current.onGlobeComplete?.();return;}
+    const target=globe.localToWorld(globeAnchor.clone());
+    const size=new THREE.Box3().setFromObject(globe).getSize(new THREE.Vector3());
+    const position=target.clone().add(camera.position.clone().sub(target).normalize().multiplyScalar(size.y*.22));
+    globeCallbacks.current.onGlobePhase?.('flying');
+    flyCamera({position,target,fov:32},true,900,()=>globeCallbacks.current.onGlobeComplete?.(),true);
+   },4100);
+  }
+  function escape(event){if(event.key==='Escape'&&globeJourney){cancelGlobe();resetView();}}
+  window.addEventListener('keydown',escape);
+  const resize=new ResizeObserver(()=>{
+   camera.aspect=element.clientWidth/element.clientHeight;renderer.setSize(element.clientWidth,element.clientHeight);if(travelling){camera.updateProjectionMatrix();render();}else resetView();
+  });resize.observe(element);
+  controls.addEventListener('change',render);
+  api.current={choose,globe:startGlobe,view:changeView,reset:resetView,select:value=>{active=value;update();},hover:value=>{hovered=value;update();}};
+
+  function fail(error){failed=true;if(!disposed){console.error('Unable to load music-store.glb:',error);onStatus('error');}}
+  const manager=new THREE.LoadingManager();
+  manager.onProgress=(_url,done,total)=>{if(!disposed)onProgress?.(done/total);};
+  manager.onError=fail;
+  manager.onLoad=()=>{if(!disposed&&!failed&&loaded){render();onStatus('ready');}};
+  function requireEntity(id){const node=entities.get(id);if(!node)throw new Error(`Missing entityId: ${id}. Restore it in Blender's custom properties.`);return node;}
+  new GLTFLoader(manager).load('/models/music-store.glb',gltf=>{
+   if(disposed){register(gltf.scene);disposeResources();return;}
+   try{
+    register(gltf.scene);scene.add(gltf.scene);scene.updateMatrixWorld(true);
+    gltf.scene.traverse(node=>{
+     const id=node.userData.entityId;
+     if(id){if(entities.has(id))throw new Error(`Duplicate entityId: ${id}`);entities.set(id,node);}
+     if(typeof node.userData.visibleIn==='string')viewGroups.push(node);
+    });
+    globe=entities.get('globe');
+    for(const id of ['camera_home','target_home','camera_projects','target_projects'])requireEntity(id);
+    projects.forEach((project,i)=>{
+     const node=requireEntity(`guitar_${project.id}`);node.userData.runtimeGuitar=i;
+     const entry={node,...anchors(node),halos:[],surfaces:[]};instruments[i]=entry;
+     const meshes=[];node.traverse(mesh=>{if(mesh.isMesh)meshes.push(mesh);});
+     meshes.forEach(mesh=>{
+      const surface=(Array.isArray(mesh.material)?mesh.material:[mesh.material]).map(original=>{
+       const material=original.clone();materials.add(material);
+       if(material.emissive)entry.surfaces.push({material,color:material.emissive.clone(),intensity:material.emissiveIntensity});
+       return material;
+      });
+      mesh.material=Array.isArray(mesh.material)?surface:surface[0];
+      const material=new THREE.MeshBasicMaterial({color:'#e9d5a0',side:THREE.BackSide,transparent:true,opacity:0,depthWrite:false});
+      materials.add(material);entry.halos.push(material);
+      const halo=new THREE.Mesh(mesh.geometry,material);halo.scale.setScalar(1.018);halo.raycast=()=>{};mesh.add(halo);
+     });
+    });
+    recordSlots.forEach((recordId,i)=>{
+     const node=requireEntity(`record_${String(i+1).padStart(2,'0')}`);node.userData.runtimeSleeve=i;
+     const rest=node.position.clone();
+     const lifted=node.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0,.1,0));
+     const lift=node.parent.worldToLocal(lifted).sub(rest);
+     sleeves[i]={node,rest,lift,...anchors(node)};
+     const record=records.find(r=>r.id===recordId);
+     // Covers remain data-driven while Blender owns the cover mesh and its placement.
+     if(record?.cover)node.traverse(mesh=>{
+      if(!mesh.isMesh||mesh.userData.surface!=='record_cover')return;
+      const map=new THREE.TextureLoader(manager).load(record.cover,texture=>{if(disposed)texture.dispose();else render();},undefined,fail);
+      map.colorSpace=THREE.SRGBColorSpace;textures.add(map);
+      const material=new THREE.MeshStandardMaterial({map,roughness:.8,side:THREE.DoubleSide});materials.add(material);mesh.material=material;
+     });
+    });
+    loaded=true;resetView();update();
+   }catch(error){fail(error);}
+  },undefined,fail);
+  function disposeResources(){geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());}
   resetView();
-  return()=>{disposed=true;cancelAnimationFrame(frame);api.current=null;resize.disconnect();controls.dispose();renderer.domElement.removeEventListener('pointermove',move);renderer.domElement.removeEventListener('pointerleave',leave);renderer.domElement.removeEventListener('pointerdown',pointerDown);renderer.domElement.removeEventListener('pointerup',pointerUp);renderer.domElement.removeEventListener('webglcontextlost',contextLost);const geometries=new Set();scene.traverse(o=>{if(o.geometry)geometries.add(o.geometry);});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());renderer.dispose();renderer.domElement.remove();};
- }, [onStatus]);
- return <div ref={host} style={{width:'100%',height:'100%'}}>{recordSlots.map((id,i)=><button key={i} data-sleeve={i} className="record-hit-area" aria-label={`Browse ${records.find(r=>r.id===id)?.album}, rack ${Math.floor(i/6)+1}, sleeve ${i%6+1}`} onFocus={()=>api.current?.hover(i)} onBlur={()=>api.current?.hover(-1)} onClick={()=>select.current(i)}/>)}</div>;
+  return()=>{
+   disposed=true;clearTimeout(globeTimer);window.removeEventListener('keydown',escape);cancelAnimationFrame(frame);cancelAnimationFrame(cameraFrame);api.current=null;resize.disconnect();controls.dispose();
+   Object.entries(events).forEach(([name,fn])=>renderer.domElement.removeEventListener(name,fn));
+   disposeResources();renderer.dispose();renderer.domElement.remove();
+  };
+ },[onStatus,onProgress]);
+ return <div ref={host} style={{width:'100%',height:'100%'}}>
+  <button hidden={view!=='home'} data-globe className="globe-hit-area" aria-label="Explore Mauritius and my résumé" onClick={()=>api.current?.globe()}/>
+  <div className="mauritius-beacon" hidden><span>Mauritius</span></div>
+  {projects.map((project,i)=><button key={project.id} data-guitar={i} className="guitar-hit-area" aria-label={view==='home'?`Visit guitar section: ${project.instrument}`:`Explore project: ${project.instrument}`} onFocus={()=>api.current?.hover(100+i)} onBlur={()=>api.current?.hover(-1)} onClick={()=>api.current?.choose(100+i)}/>)}
+  {recordSlots.map((id,i)=><button key={i} data-sleeve={i} className="record-hit-area" aria-label={`Browse ${records.find(r=>r.id===id)?.album}, rack ${Math.floor(i/6)+1}, sleeve ${i%6+1}`} onFocus={()=>api.current?.hover(i)} onBlur={()=>api.current?.hover(-1)} onClick={()=>api.current?.choose(i)}/>)}
+ </div>;
 }
