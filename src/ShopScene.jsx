@@ -21,7 +21,8 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
   let renderer;
   try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}
   catch{onStatus('error');return;}
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));
+  const smallViewport=window.matchMedia('(max-width: 700px)').matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,smallViewport?1.25:1.75));
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
   renderer.domElement.setAttribute('aria-hidden','true');
@@ -34,13 +35,19 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
   controls.rotateSpeed=.35;controls.touches.ONE=THREE.TOUCH.ROTATE;
   scene.add(new THREE.HemisphereLight('#f5ecd7','#4b5841',1.8));
   const sun=new THREE.DirectionalLight('#ffe4be',2.3);
-  sun.position.set(-2.5,4,3);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+  sun.position.set(-2.5,4,3);sun.castShadow=true;sun.shadow.mapSize.set(smallViewport?1024:2048,smallViewport?1024:2048);
   Object.assign(sun.shadow.camera,{left:-3,right:3,top:3,bottom:-3});
   sun.shadow.normalBias=.025;sun.shadow.bias=-.0002;sun.shadow.radius=4;scene.add(sun);
   const fill=new THREE.DirectionalLight('#b8d2c3',1.4);fill.position.set(3,2,3);scene.add(fill);
 
   const entities=new Map(),instruments=[],sleeves=[],viewGroups=[];
+  const guitarButtons=projects.map((_,i)=>element.querySelector(`[data-guitar="${i}"]`));
+  const sleeveButtons=recordSlots.map((_,i)=>element.querySelector(`[data-sleeve="${i}"]`));
+  const globeButton=element.querySelector('[data-globe]');
+  const mauritiusBeacon=element.querySelector('.mauritius-beacon');
   const materials=new Set(),textures=new Set(),geometries=new Set();
+  const coverMaterials=new Map();
+  const textureLoader=new THREE.TextureLoader();
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   let disposed=false,failed=false,loaded=false,frame=0,cameraFrame=0,travelling=false;
   let hovered=-1,active=selected,down=null,currentView=viewRef.current;
@@ -50,7 +57,9 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
   function register(root){
    root.traverse(node=>{
     if(!node.isMesh)return;
-    node.castShadow=true;node.receiveShadow=true;geometries.add(node.geometry);
+    node.castShadow=false;
+    node.receiveShadow=true;
+    geometries.add(node.geometry);
     for(const material of Array.isArray(node.material)?node.material:[node.material]){
      materials.add(material);
      for(const value of Object.values(material))if(value?.isTexture){
@@ -60,8 +69,8 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
    });
   }
   function visible(node){for(let p=node;p;p=p.parent)if(!p.visible)return false;return true;}
-  function placeButton(entry,selector,anchor){
-   const button=element.querySelector(selector);if(!button)return;
+  function placeButton(entry,anchor){
+   const button=entry.button;if(!button)return;
    const point=entry.node.localToWorld(anchor.clone()).project(camera);
    button.hidden=!visible(entry.node)||point.z>1||point.z< -1;
    button.style.left=`${(point.x+1)*element.clientWidth/2}px`;
@@ -69,13 +78,13 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
   }
   function render(){
    if(disposed)return;
-   scene.updateMatrixWorld(true);renderer.render(scene,camera);
-   instruments.forEach((entry,i)=>placeButton(entry,`[data-guitar="${i}"]`,currentView==='home'?entry.lowerAnchor:entry.anchor));
-   sleeves.forEach((entry,i)=>placeButton(entry,`[data-sleeve="${i}"]`,entry.anchor));
+   renderer.render(scene,camera);
+   instruments.forEach(entry=>placeButton(entry,currentView==='home'?entry.lowerAnchor:entry.anchor));
+   sleeves.forEach(entry=>placeButton(entry,entry.anchor));
    if(globe){
     const anchor=globeAnchor??globe.worldToLocal(new THREE.Box3().setFromObject(globe).getCenter(new THREE.Vector3()));
-    placeButton({node:globe},'[data-globe]',anchor);
-    const beacon=element.querySelector('.mauritius-beacon');
+    placeButton({node:globe,button:globeButton},anchor);
+    const beacon=mauritiusBeacon;
     const point=globe.localToWorld(anchor.clone()).project(camera);
     beacon.hidden=!globeJourney||!visible(globe)||point.z>1;
     beacon.style.left=`${(point.x+1)*element.clientWidth/2}px`;beacon.style.top=`${(1-point.y)*element.clientHeight/2}px`;
@@ -89,7 +98,7 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
   function glow(){
    instruments.forEach((entry,i)=>{
     const enabled=hovered===100+i||active===projects[i].id;
-    entry.halos.forEach(m=>{m.opacity=enabled?.15:0;});
+    entry.halos.forEach(mesh=>{mesh.visible=enabled;});
     entry.surfaces.forEach(({material,color,intensity})=>{
      material.emissive.copy(enabled?new THREE.Color('#d4b87e'):color);
      material.emissiveIntensity=enabled?.012:intensity;
@@ -101,7 +110,7 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
    const tick=()=>{
     let moving=false;
     sleeves.forEach((entry,i)=>{
-     const target=entry.rest.clone();if(i===hovered||i===active)target.add(entry.lift);
+      const target=entry.rest.clone();if(i===hovered||i===active)target.add(entry.lift);
      const distance=entry.node.position.distanceTo(target);
      entry.node.position.lerp(target,reduced.matches?1:.16);
      if(distance>.0002)moving=true;
@@ -114,7 +123,19 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
    const rect=renderer.domElement.getBoundingClientRect();
    pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);
    raycaster.setFromCamera(pointer,camera);
-   let node=raycaster.intersectObjects(scene.children,true).find(hit=>visible(hit.object))?.object;
+   let node=null,closest=Infinity;
+   for(const entry of instruments){
+    const hit=raycaster.intersectObject(entry.node,true).find(value=>visible(value.object));
+    if(hit&&hit.distance<closest){node=hit.object;closest=hit.distance;}
+   }
+   if(currentView==='home'){
+    const globeHit=globe&&raycaster.intersectObject(globe,true).find(value=>visible(value.object));
+    if(globeHit&&globeHit.distance<closest){node=globeHit.object;closest=globeHit.distance;}
+    for(const entry of sleeves){
+     const sleeveHit=raycaster.intersectObject(entry.node,true).find(value=>visible(value.object));
+     if(sleeveHit&&sleeveHit.distance<closest){node=sleeveHit.object;closest=sleeveHit.distance;}
+    }
+   }
    while(node){
     if(currentView==='home'&&node===globe)return 1000;
     if(node.userData.runtimeGuitar!==undefined)return 100+node.userData.runtimeGuitar;
@@ -250,10 +271,12 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
      if(typeof node.userData.visibleIn==='string')viewGroups.push(node);
     });
     globe=entities.get('globe');
+    globe?.traverse(mesh=>{if(mesh.isMesh)mesh.castShadow=true;});
     for(const id of ['camera_home','target_home','camera_projects','target_projects'])requireEntity(id);
     projects.forEach((project,i)=>{
      const node=requireEntity(`guitar_${project.id}`);node.userData.runtimeGuitar=i;
-     const entry={node,...anchors(node),halos:[],surfaces:[]};instruments[i]=entry;
+     node.traverse(mesh=>{if(mesh.isMesh)mesh.castShadow=true;});
+     const entry={node,button:guitarButtons[i],...anchors(node),halos:[],surfaces:[]};instruments[i]=entry;
      const meshes=[];node.traverse(mesh=>{if(mesh.isMesh)meshes.push(mesh);});
      meshes.forEach(mesh=>{
       const surface=(Array.isArray(mesh.material)?mesh.material:[mesh.material]).map(original=>{
@@ -262,24 +285,29 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
        return material;
       });
       mesh.material=Array.isArray(mesh.material)?surface:surface[0];
-      const material=new THREE.MeshBasicMaterial({color:'#e9d5a0',side:THREE.BackSide,transparent:true,opacity:0,depthWrite:false});
-      materials.add(material);entry.halos.push(material);
-      const halo=new THREE.Mesh(mesh.geometry,material);halo.scale.setScalar(1.018);halo.raycast=()=>{};mesh.add(halo);
+      const material=new THREE.MeshBasicMaterial({color:'#e9d5a0',side:THREE.BackSide,depthWrite:false});
+      materials.add(material);
+      const halo=new THREE.Mesh(mesh.geometry,material);halo.scale.setScalar(1.018);halo.visible=false;halo.raycast=()=>{};mesh.add(halo);entry.halos.push(halo);
      });
     });
     recordSlots.forEach((recordId,i)=>{
      const node=requireEntity(`record_${String(i+1).padStart(2,'0')}`);node.userData.runtimeSleeve=i;
+     node.traverse(mesh=>{if(mesh.isMesh)mesh.castShadow=true;});
      const rest=node.position.clone();
      const lifted=node.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0,.1,0));
      const lift=node.parent.worldToLocal(lifted).sub(rest);
-     sleeves[i]={node,rest,lift,...anchors(node)};
+     sleeves[i]={node,rest,lift,button:sleeveButtons[i],...anchors(node)};
      const record=records.find(r=>r.id===recordId);
      // Covers remain data-driven while Blender owns the cover mesh and its placement.
      if(record?.cover)node.traverse(mesh=>{
       if(!mesh.isMesh||mesh.userData.surface!=='record_cover')return;
-      const map=new THREE.TextureLoader(manager).load(record.cover,texture=>{if(disposed)texture.dispose();else render();},undefined,fail);
-      map.colorSpace=THREE.SRGBColorSpace;textures.add(map);
-      const material=new THREE.MeshStandardMaterial({map,roughness:.8,side:THREE.DoubleSide});materials.add(material);mesh.material=material;
+      let material=coverMaterials.get(record.cover);
+      if(!material){
+       const map=textureLoader.load(record.cover,texture=>{if(disposed)texture.dispose();else render();},undefined,fail);
+       map.colorSpace=THREE.SRGBColorSpace;textures.add(map);
+       material=new THREE.MeshStandardMaterial({map,roughness:.8});materials.add(material);coverMaterials.set(record.cover,material);
+      }
+      mesh.material=material;
      });
     });
     loaded=true;resetView();update();
