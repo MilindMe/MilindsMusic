@@ -4,9 +4,10 @@ import {House, FolderOpen, FileText, Gamepad2, Menu, PanelLeftClose, RotateCcw, 
 import {lightingModes} from './lighting';
 import './styles.css';
 import {projects} from './projects';
-import {records, recordSlots} from './data';
+import {records, recordSlots, books} from './data';
 import ProjectDetails from './ProjectDetails';
 import RecordDetails from './RecordDetails';
+import BookDetails from './BookDetails';
 import MusicPlayer from './MusicPlayer';
 const ShopScene = lazy(() => import('./ShopScene'));
 import LoadingScreen from './LoadingScreen';
@@ -81,6 +82,7 @@ function App(){
  const Scene=page==='memories'?MemoriesScene:ShopScene;
  const project=page==='projects'?projects.find(p=>p.id===selected):null;
  const record=page==='home'&&Number.isInteger(selected)?records.find(r=>r.id===recordSlots[selected]):null;
+ const book=page==='home'&&typeof selected==='string'?books.find(b=>`book:${b.id}`===selected):null;
  return <div className={`app-shell ${page==='memories'?'memories-page':''} ${flying||globePhase==='flying'?'is-travelling':''}`}>
   <aside inert={splash||flying||globePhase==='flying'} className={`sidebar ${expanded?'is-expanded':''}`} aria-label="Site navigation">
    <button className="sidebar-toggle" aria-label={expanded?'Collapse navigation':'Expand navigation'} aria-expanded={expanded} aria-controls="primary-navigation" onClick={()=>setExpanded(v=>!v)}>{expanded?<PanelLeftClose size={20}/>:<Menu size={20}/>}</button>
@@ -103,6 +105,7 @@ function App(){
    </>:<ResumePage/>}
    {project&&<ProjectDetails key={project.id} project={project} onClose={()=>setSelected(null)}/>}
    {record&&<RecordDetails key={record.id} record={record} onClose={()=>setSelected(null)} onPlay={id=>{setMusicTrack(id);setPlayRequest(v=>v+1);setSelected(null);}}/>}
+   {book&&<BookDetails key={book.id} book={book} onClose={()=>setSelected(null)}/>}
   </main>
   {globePhase==='flying'&&<IslandFlight/>}
   {flying&&<PsychedelicFlight key={page} direction={page}/>}

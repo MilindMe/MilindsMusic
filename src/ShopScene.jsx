@@ -2,7 +2,7 @@ import React, {useEffect, useRef} from 'react';
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {records, recordSlots} from './data';
+import {records, recordSlots, books} from './data';
 import {projects} from './projects';
 import {applyLighting} from './lighting';
 
@@ -46,9 +46,10 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
   const lightRig={hemisphere,key:sun,fill,scene};
   applyLighting(lightModeRef.current,'shop',lightRig);
 
-  const entities=new Map(),instruments=[],sleeves=[],viewGroups=[];
+  const entities=new Map(),instruments=[],sleeves=[],shelfBooks=[],viewGroups=[];
   const guitarButtons=projects.map((_,i)=>element.querySelector(`[data-guitar="${i}"]`));
   const sleeveButtons=recordSlots.map((_,i)=>element.querySelector(`[data-sleeve="${i}"]`));
+  const bookButtons=books.map((_,i)=>element.querySelector(`[data-book="${i}"]`));
   const globeButton=element.querySelector('[data-globe]');
   const mauritiusBeacon=element.querySelector('.mauritius-beacon');
   const materials=new Set(),textures=new Set(),geometries=new Set();
@@ -87,6 +88,8 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
    renderer.render(scene,camera);
    instruments.forEach(entry=>placeButton(entry,currentView==='home'?entry.lowerAnchor:entry.anchor));
    sleeves.forEach(entry=>placeButton(entry,entry.anchor));
+   // Shelves stay visible in the guitar view, but books are only interactive from Home.
+   shelfBooks.forEach(entry=>{if(currentView==='home')placeButton(entry,entry.anchor);else if(entry.button)entry.button.hidden=true;});
    if(globe){
     const anchor=globeAnchor??globe.worldToLocal(new THREE.Box3().setFromObject(globe).getCenter(new THREE.Vector3()));
     placeButton({node:globe,button:globeButton},anchor);
@@ -110,17 +113,28 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
      material.emissiveIntensity=enabled?.012:intensity;
     });
    });
+   // Clickable books keep a faint warm glow so they read as interactive; hover adds the rim and brightens it.
+   shelfBooks.forEach((entry,i)=>{
+    const enabled=hovered===200+i||active===`book:${books[i].id}`;
+    entry.halo.opacity=currentView!=='home'?0:enabled?.85:.28;
+    entry.surfaces.forEach(({material})=>{
+     material.emissive.set('#d4b87e');
+     material.emissiveIntensity=currentView!=='home'?0:enabled?.4:.15;
+    });
+   });
   }
   function update(){
    glow();cancelAnimationFrame(frame);
    const tick=()=>{
     let moving=false;
-    sleeves.forEach((entry,i)=>{
-      const target=entry.rest.clone();if(i===hovered||i===active)target.add(entry.lift);
+    const slide=(entry,raised)=>{
+     const target=entry.rest.clone();if(raised)target.add(entry.lift);
      const distance=entry.node.position.distanceTo(target);
      entry.node.position.lerp(target,reduced.matches?1:.16);
      if(distance>.0002)moving=true;
-    });
+    };
+    sleeves.forEach((entry,i)=>slide(entry,i===hovered||i===active));
+    shelfBooks.forEach((entry,i)=>slide(entry,200+i===hovered||active===`book:${books[i].id}`));
     render();if(moving)frame=requestAnimationFrame(tick);
    };
    tick();
@@ -141,11 +155,16 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
      const sleeveHit=raycaster.intersectObject(entry.node,true).find(value=>visible(value.object));
      if(sleeveHit&&sleeveHit.distance<closest){node=sleeveHit.object;closest=sleeveHit.distance;}
     }
+    for(const entry of shelfBooks){
+     const bookHit=raycaster.intersectObject(entry.node,true).find(value=>visible(value.object));
+     if(bookHit&&bookHit.distance<closest){node=bookHit.object;closest=bookHit.distance;}
+    }
    }
    while(node){
     if(currentView==='home'&&node===globe)return 1000;
     if(node.userData.runtimeGuitar!==undefined)return 100+node.userData.runtimeGuitar;
     if(currentView==='home'&&node.userData.runtimeSleeve!==undefined)return node.userData.runtimeSleeve;
+    if(currentView==='home'&&node.userData.runtimeBook!==undefined)return 200+node.userData.runtimeBook;
     node=node.parent;
    }
    return -1;
@@ -153,7 +172,8 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
   function choose(index){
    if(index===1000){startGlobe();return;}
    cancelGlobe();
-   if(index>=100){if(currentView==='home')location.hash='projects';else select.current(projects[index-100].id);}
+   if(index>=200)select.current(`book:${books[index-200].id}`);
+   else if(index>=100){if(currentView==='home')location.hash='projects';else select.current(projects[index-100].id);}
    else if(index>=0)select.current(index);
   }
   function move(event){if(event.buttons)return;const next=hit(event);if(next!==hovered){hovered=next;renderer.domElement.style.cursor=next<0?'grab':'pointer';update();}}
@@ -162,7 +182,7 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
   function pointerUp(event){
    if(down&&Math.hypot(event.clientX-down.x,event.clientY-down.y)<7){
     const index=hit(event);
-    if(index>=0){element.querySelector(index===1000?'[data-globe]':index>=100?`[data-guitar="${index-100}"]`:`[data-sleeve="${index}"]`)?.focus({preventScroll:true});choose(index);}
+    if(index>=0){element.querySelector(index===1000?'[data-globe]':index>=200?`[data-book="${index-200}"]`:index>=100?`[data-guitar="${index-100}"]`:`[data-sleeve="${index}"]`)?.focus({preventScroll:true});choose(index);}
    }
    down=null;
   }
@@ -316,6 +336,31 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
       mesh.material=material;
      });
     });
+    books.forEach((book,i)=>{
+     const node=requireEntity(book.entityId);node.userData.runtimeBook=i;
+     node.traverse(mesh=>{if(mesh.isMesh)mesh.castShadow=true;});
+     const rest=node.position.clone();
+     // The Home camera only sees the lower spines, so books slide out toward the room instead of up.
+     const lifted=node.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0,0,.09));
+     const halo=new THREE.MeshBasicMaterial({color:'#e9d5a0',side:THREE.BackSide,transparent:true,opacity:.28,depthWrite:false});
+     materials.add(halo);
+     const entry={node,rest,lift:node.parent.worldToLocal(lifted).sub(rest),button:bookButtons[i],...anchors(node),halo,surfaces:[]};shelfBooks[i]=entry;
+     const meshes=[];node.traverse(mesh=>{if(mesh.isMesh)meshes.push(mesh);});
+     meshes.forEach(mesh=>{
+      mesh.material=(Array.isArray(mesh.material)?mesh.material:[mesh.material]).map(original=>{
+       const material=original.clone();materials.add(material);
+       if(material.emissive)entry.surfaces.push({material});
+       return material;
+      });
+      if(mesh.material.length===1)mesh.material=mesh.material[0];
+      // Books are thin, so pad the rim by a fixed distance rather than a uniform scale.
+      if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+      const size=mesh.geometry.boundingBox.getSize(new THREE.Vector3());
+      const rim=new THREE.Mesh(mesh.geometry,halo);rim.raycast=()=>{};
+      rim.scale.set(1+.012/Math.max(size.x,.001),1+.012/Math.max(size.y,.001),1+.012/Math.max(size.z,.001));
+      mesh.add(rim);
+     });
+    });
     loaded=true;resetView();update();
    }catch(error){fail(error);}
   },undefined,fail);
@@ -331,6 +376,7 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
   <button hidden={view!=='home'} data-globe className="globe-hit-area" aria-label="Explore Mauritius and my résumé" onClick={()=>api.current?.globe()}/>
   <div className="mauritius-beacon" hidden><span>Mauritius</span></div>
   {projects.map((project,i)=><button key={project.id} data-guitar={i} className="guitar-hit-area" aria-label={view==='home'?`Visit guitar section: ${project.instrument}`:`Explore project: ${project.instrument}`} onFocus={()=>api.current?.hover(100+i)} onBlur={()=>api.current?.hover(-1)} onClick={()=>api.current?.choose(100+i)}/>)}
+  {books.map((book,i)=><button key={book.id} data-book={i} className="book-hit-area" aria-label={`Browse ${book.title} by ${book.author}`} onFocus={()=>api.current?.hover(200+i)} onBlur={()=>api.current?.hover(-1)} onClick={()=>api.current?.choose(200+i)}/>)}
   {recordSlots.map((id,i)=><button key={i} data-sleeve={i} className="record-hit-area" aria-label={`Browse ${records.find(r=>r.id===id)?.album}, rack ${Math.floor(i/6)+1}, sleeve ${i%6+1}`} onFocus={()=>api.current?.hover(i)} onBlur={()=>api.current?.hover(-1)} onClick={()=>api.current?.choose(i)}/>)}
  </div>;
 }

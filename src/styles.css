@@ -64,3 +64,8 @@
 .light-stop-labels span{height:18px;display:flex;align-items:center}
 .is-travelling .light-toggle{visibility:hidden}
 @media(max-width:700px){.light-toggle{right:16px;bottom:176px;width:36px;height:36px}.light-panel{right:14px;bottom:222px}}
+/* Shelf books mirror the record sleeves: lift on hover, side card on click. */
+.book-hit-area{position:absolute;z-index:2;width:14px;height:36px;transform:translate(-50%,-50%);padding:0;border:0;opacity:0;pointer-events:none;background:transparent;border-radius:3px}
+.book-hit-area:focus-visible{opacity:1;outline:2px solid #efb17b;outline-offset:4px}
+.book-visual{height:230px;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 100%,#53634455,transparent 70%),#16231d}.book-visual img{height:200px;max-width:150px;object-fit:cover;box-shadow:0 15px 32px #0005}
+.book-cover{display:flex;flex-direction:column;justify-content:space-between;width:136px;height:196px;padding:22px 16px 16px 22px;border-radius:2px 6px 6px 2px;background:linear-gradient(90deg,#0004 0 7px,#fff1 7px 9px,transparent 9px),var(--book-color);color:#f5ecd8;box-shadow:0 15px 32px #0006}.book-cover strong{font-family:Georgia,serif;font-size:19px;font-weight:400;line-height:1.2}.book-cover span{font-size:10px;letter-spacing:1px;text-transform:uppercase;opacity:.8}
