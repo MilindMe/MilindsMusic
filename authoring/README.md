@@ -12,6 +12,7 @@ Use the Outliner to select a parent, then move/rotate/scale it:
 | --- | --- |
 | `Display_ibanez`, `Display_acoustic` | Each guitar and its hanger arms |
 | `Bookshelf_Left`, `Bookshelf_Right` | Shelves and individually editable books |
+| `Jukebox` | Complete textured jukebox beneath the left shelves; move this parent to arrange it |
 | `Crate_1`, `Crate_2`, `Crate_3` | Crate parts and six individual records each |
 | `Record_Counter` | Counter top and edge |
 | `Globe` | Globe model |
@@ -28,6 +29,23 @@ for orientation; camera roll is not used by the website.
 
 Blender and the website use different lighting/renderers, so use the website for
 final appearance checks. Preview lights are excluded from the GLB export.
+
+The full room, including the jukebox mesh, materials, packed textures, shelves,
+guitars, records, globe, and cameras, is in `music-store.blend`. No source FBX or
+external texture folder is needed to edit it. The jukebox has `entityId=jukebox`
+and remains visible in both room views. Its cabinet sits on the floor with
+clearance below the lowest left shelf.
+The static jukebox has no animation tracks, so moving either its parent or its
+mesh persists when the file is reopened for export. If Blender was open during
+an external update to this master, reopen it before making further edits.
+Use **File → Revert** to explicitly reload the saved file rather than restoring
+an older Blender session. The exporter rejects jukebox animation if an older
+session puts the original FBX action back. To repair that session directly, run
+`scripts/repair-jukebox.py` in Blender's Scripting workspace, then move and save.
+
+The one-time importer is `scripts/add-jukebox.py`; it reads the supplied asset
+from `../3d_models/jukebox` (or `JUKEBOX_SOURCE`) and refuses to duplicate an
+existing jukebox. For later changes, edit the master and use the normal export.
 
 ## Preserve interactions
 
@@ -67,6 +85,15 @@ The command exports the file on disk, so save before running it. Export validate
 uniqueness and required camera markers, preserves transforms and custom properties,
 and replaces the website GLB only after validation. Keep the project folder structure
 when using the embedded export helper. `BLENDER_PATH` can override the Blender executable.
+
+Every export automatically optimizes the jukebox for the website: cabinet artwork
+is capped at 1024px, supporting maps at 512px, opaque images use JPEG quality 85,
+opaque title art avoids transparency, and actual glass keeps its translucency
+with a single rendering pass on the website. The web cabinet is simplified to about
+6,500 triangles while preserving UV and material boundaries. Authored modifiers
+take precedence over automatic simplification. These changes use temporary mesh,
+material, and image copies; the master retains its editable geometry, textures,
+and current placement. No additional optimization command is needed.
 
 To hand the changes back, save the master in this folder and tell me it is ready.
 I can export it, verify the views, and attach further functionality to its objects.

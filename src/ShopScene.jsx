@@ -278,6 +278,13 @@ export default function ShopScene({lightMode='golden', onSelect, selected, reset
     });
     globe=entities.get('globe');
     globe?.traverse(mesh=>{if(mesh.isMesh)mesh.castShadow=true;});
+    entities.get('jukebox')?.traverse(mesh=>{
+     if(!mesh.isMesh)return;
+     mesh.castShadow=true;
+     for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
+      if(material.transparent)material.forceSinglePass=true;
+     }
+    });
     for(const id of ['camera_home','target_home','camera_projects','target_projects'])requireEntity(id);
     projects.forEach((project,i)=>{
      const node=requireEntity(`guitar_${project.id}`);node.userData.runtimeGuitar=i;

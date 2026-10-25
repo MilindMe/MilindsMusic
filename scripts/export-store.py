@@ -2,12 +2,21 @@
 Run through `npm run export:store`, or inside Blender's Scripting workspace.
 """
 from pathlib import Path
-import bpy, json, os, struct, sys
+import bpy, json, os, runpy, struct, sys
 ROOT=Path(__file__).resolve().parents[1]
 # Optional CLI output lets validation tests export a temporary copy.
 args=sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
 output=Path(args[0]) if args else ROOT/'public/models/music-store.glb'
 objects=[o for o in bpy.context.scene.objects if not o.get('previewOnly') and o.type!='LIGHT']
+# Reject stale copies of the original FBX before publishing a silently reset prop.
+jukebox=next((o for o in objects if o.get('entityId')=='jukebox'),None)
+if jukebox:
+ for obj in [jukebox,*jukebox.children_recursive]:
+  animation=obj.animation_data
+  if animation and (animation.action or any(track.strips for track in animation.nla_tracks)):
+   raise RuntimeError('Jukebox has animation that can reset Blender moves on reopening. '
+    'Use File > Revert to load the repaired master, or clear Animation Data on '
+    'Vintage_Jukebox in Blender before moving and saving it again.')
 ids={}
 for obj in objects:
  identity=obj.get('entityId')
@@ -29,9 +38,11 @@ temporary=output.with_name(output.stem+'.exporting.glb')
 try:
  bpy.ops.object.select_all(action='DESELECT')
  for obj in objects:obj.select_set(True)
- bpy.ops.export_scene.gltf(filepath=str(temporary),export_format='GLB',use_selection=True,
-  export_extras=True,export_cameras=True,export_lights=False,export_animations=False,
-  export_yup=True,export_image_format='AUTO')
+ optimize=runpy.run_path(str(ROOT/'scripts/store_web_assets.py'))['optimized_jukebox']
+ with optimize(objects):
+  bpy.ops.export_scene.gltf(filepath=str(temporary),export_format='GLB',use_selection=True,
+   export_extras=True,export_cameras=True,export_lights=False,export_animations=False,
+   export_yup=True,export_image_format='AUTO')
  # Validate the actual artifact before replacing the working website asset.
  data=temporary.read_bytes();length=struct.unpack_from('<I',data,12)[0]
  document=json.loads(data[20:20+length]);exported=[n.get('extras',{}).get('entityId') for n in document['nodes']]
