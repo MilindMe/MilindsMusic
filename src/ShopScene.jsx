@@ -4,10 +4,12 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {records, recordSlots} from './data';
 import {projects} from './projects';
+import {applyLighting} from './lighting';
 
 // Layout and rest transforms belong to authoring/music-store.blend.
 // Stable entityId properties bind the exported objects to website behaviors.
-export default function ShopScene({onSelect, selected, reset, onStatus, onProgress, view='home', animateTransition=false, onTransitionComplete, onGlobePhase, onGlobeComplete}) {
+export default function ShopScene({lightMode='golden', onSelect, selected, reset, onStatus, onProgress, view='home', animateTransition=false, onTransitionComplete, onGlobePhase, onGlobeComplete}) {
+ const lightModeRef=useRef(lightMode);lightModeRef.current=lightMode;
  const host=useRef(null),api=useRef(null),select=useRef(onSelect),viewRef=useRef(view);
  const globeCallbacks=useRef({onGlobePhase,onGlobeComplete});globeCallbacks.current={onGlobePhase,onGlobeComplete};
  const transition=useRef({animateTransition,onTransitionComplete});
@@ -16,6 +18,7 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
  useEffect(()=>{api.current?.view(view);},[view]);
  useEffect(()=>{api.current?.reset();},[reset]);
  useEffect(()=>{api.current?.select(selected);},[selected]);
+ useEffect(()=>{api.current?.lighting(lightMode);},[lightMode]);
  useEffect(()=>{
   const element=host.current;
   let renderer;
@@ -24,7 +27,7 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
   const smallViewport=window.matchMedia('(max-width: 700px)').matches;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,smallViewport?1.25:1.75));
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;
-  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.98;
   renderer.domElement.setAttribute('aria-hidden','true');
   renderer.domElement.style.touchAction='pan-y';element.appendChild(renderer.domElement);
   const scene=new THREE.Scene();scene.fog=new THREE.Fog('#304639',5,30);
@@ -33,12 +36,15 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
   controls.enablePan=false;controls.enableZoom=false;controls.enableDamping=false;
   controls.minAzimuthAngle=-.3;controls.maxAzimuthAngle=.3;
   controls.rotateSpeed=.35;controls.touches.ONE=THREE.TOUCH.ROTATE;
-  scene.add(new THREE.HemisphereLight('#f5ecd7','#4b5841',1.8));
-  const sun=new THREE.DirectionalLight('#ffe4be',2.3);
-  sun.position.set(-2.5,4,3);sun.castShadow=true;sun.shadow.mapSize.set(smallViewport?1024:2048,smallViewport?1024:2048);
+  // Low amber light and restrained sky fill keep the shaded side of objects dusky.
+  const hemisphere=new THREE.HemisphereLight('#c4cbd7','#34392f',.85);scene.add(hemisphere);
+  const sun=new THREE.DirectionalLight('#ffd09a',2.8);
+  sun.position.set(-4,2.7,2);sun.castShadow=true;sun.shadow.mapSize.set(smallViewport?1024:2048,smallViewport?1024:2048);
   Object.assign(sun.shadow.camera,{left:-3,right:3,top:3,bottom:-3});
   sun.shadow.normalBias=.025;sun.shadow.bias=-.0002;sun.shadow.radius=4;scene.add(sun);
-  const fill=new THREE.DirectionalLight('#b8d2c3',1.4);fill.position.set(3,2,3);scene.add(fill);
+  const fill=new THREE.DirectionalLight('#a8bacb',.45);fill.position.set(3,2,3);scene.add(fill);
+  const lightRig={hemisphere,key:sun,fill,scene};
+  applyLighting(lightModeRef.current,'shop',lightRig);
 
   const entities=new Map(),instruments=[],sleeves=[],viewGroups=[];
   const guitarButtons=projects.map((_,i)=>element.querySelector(`[data-guitar="${i}"]`));
@@ -253,7 +259,7 @@ export default function ShopScene({onSelect, selected, reset, onStatus, onProgre
    camera.aspect=element.clientWidth/element.clientHeight;renderer.setSize(element.clientWidth,element.clientHeight);if(travelling){camera.updateProjectionMatrix();render();}else resetView();
   });resize.observe(element);
   controls.addEventListener('change',render);
-  api.current={choose,globe:startGlobe,view:changeView,reset:resetView,select:value=>{active=value;update();},hover:value=>{hovered=value;update();}};
+  api.current={choose,globe:startGlobe,view:changeView,reset:resetView,lighting:mode=>{applyLighting(mode,'shop',lightRig);render();},select:value=>{active=value;update();},hover:value=>{hovered=value;update();}};
 
   function fail(error){failed=true;if(!disposed){console.error('Unable to load music-store.glb:',error);onStatus('error');}}
   const manager=new THREE.LoadingManager();

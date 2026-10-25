@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useRef, useCallback, lazy, Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
-import {House, FolderOpen, FileText, Gamepad2, Menu, PanelLeftClose, RotateCcw, RefreshCw} from 'lucide-react';
+import {House, FolderOpen, FileText, Gamepad2, Menu, PanelLeftClose, RotateCcw, RefreshCw, Sun} from 'lucide-react';
+import {lightingModes} from './lighting';
 import './styles.css';
 import {projects} from './projects';
 import {records, recordSlots} from './data';
@@ -52,6 +53,8 @@ function App(){
   setProgress(1);const timer=setTimeout(()=>setSplash(false),180);return()=>clearTimeout(timer);
  },[status,minimumElapsed,page,splash,flying]);
  const [reset,setReset]=useState(0);
+ const [lightMode,setLightMode]=useState('golden');
+ useEffect(()=>{document.getElementById('scene-light-panel')?.hidePopover?.();},[page,splash,flying,globePhase]);
  const [musicTrack,setMusicTrack]=useState(null);
  const [playRequest,setPlayRequest]=useState(0);
  useEffect(()=>{
@@ -85,10 +88,18 @@ function App(){
   </aside>
   <main inert={splash||flying||globePhase==='flying'} className="page" aria-label={page==='home'?'Record shop':page==='projects'?'Guitar shop — projects':page==='memories'?'Memories':'Résumé and where I’m from'}>
    {page!=='resume'?<>
-    <div className="scene"><SceneBoundary key={`${page==='projects'?'home':page}-${attempt}`} onError={()=>setStatus('error')}><Suspense fallback={null}><Scene onSelect={setSelected} selected={selected} reset={reset} onStatus={setStatus} onProgress={reportProgress} view={page} animateTransition={flying} onTransitionComplete={finishFlight} onGlobePhase={beginGlobePhase} onGlobeComplete={finishGlobeFlight}/></Suspense></SceneBoundary></div>
+    <div className="scene"><SceneBoundary key={`${page==='projects'?'home':page}-${attempt}`} onError={()=>setStatus('error')}><Suspense fallback={null}><Scene lightMode={lightMode} onSelect={setSelected} selected={selected} reset={reset} onStatus={setStatus} onProgress={reportProgress} view={page} animateTransition={flying} onTransitionComplete={finishFlight} onGlobePhase={beginGlobePhase} onGlobeComplete={finishGlobeFlight}/></Suspense></SceneBoundary></div>
     {status==='error'&&<button className="scene-status retry" onClick={retry} aria-label="Unable to load the shop. Retry"><RefreshCw size={24}/></button>}
     {page==='projects'&&<a className="guitar-back" href="#home" aria-label="Back to the music store"><span aria-hidden="true">←</span> Back</a>}
     <button className="reset-view" onClick={()=>{setReset(v=>v+1);setSelected(null);}} aria-label="Reset camera view"><RotateCcw size={17} strokeWidth={1.5}/></button>
+    <button className="light-toggle" popoverTarget="scene-light-panel" aria-label={`Lighting: ${lightingModes.find(mode=>mode.id===lightMode).label}. Adjust lighting`} title="Adjust lighting"><Sun size={18} strokeWidth={1.5}/></button>
+    <div id="scene-light-panel" className="light-panel" popover="auto">
+     <div className="light-slider-layout">
+      <input type="range" min="0" max="2" step="1" value={lightingModes.findIndex(mode=>mode.id===lightMode)} onChange={event=>setLightMode(lightingModes[Number(event.target.value)].id)} aria-label="Scene lighting mode" aria-valuetext={lightingModes.find(mode=>mode.id===lightMode).label} aria-orientation="vertical" list="light-mode-stops"/>
+      <datalist id="light-mode-stops"><option value="0"/><option value="1"/><option value="2"/></datalist>
+     
+     </div>
+    </div>
    </>:<ResumePage/>}
    {project&&<ProjectDetails key={project.id} project={project} onClose={()=>setSelected(null)}/>}
    {record&&<RecordDetails key={record.id} record={record} onClose={()=>setSelected(null)} onPlay={id=>{setMusicTrack(id);setPlayRequest(v=>v+1);setSelected(null);}}/>}

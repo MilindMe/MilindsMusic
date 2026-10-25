@@ -54,3 +54,13 @@
 @media(prefers-reduced-motion:reduce){.mauritius-beacon::before,.mauritius-beacon::after{animation:none;opacity:.6}}
 
 .globe-hit-area:has(+.mauritius-beacon:not([hidden])){outline:none}
+
+.light-toggle{position:absolute;z-index:4;right:26px;bottom:76px;width:40px;height:40px;display:grid;place-items:center;border:1px solid #bbc7a625;border-radius:50%;background:#20372bb3;color:#d8be91;transition:background .2s}
+.light-toggle:hover{background:#536250}
+.light-panel{position:fixed;inset:auto 26px 126px auto;margin:0;padding:16px 14px;width:176px;border:1px solid #bbc7a640;border-radius:16px;background:#1d3028f5;color:#d8be91;box-shadow:0 8px 25px #07130c60}
+.light-slider-layout{height:154px;display:grid;grid-template-columns:28px 1fr;align-items:stretch;gap:12px}
+.light-slider-layout input{writing-mode:vertical-lr;direction:rtl;width:24px;height:100%;margin:0;accent-color:#d8a76d;cursor:pointer;touch-action:none}
+.light-stop-labels{display:flex;flex-direction:column;justify-content:space-between;padding:2px 0;color:#b9c5b5;font-size:12px}
+.light-stop-labels span{height:18px;display:flex;align-items:center}
+.is-travelling .light-toggle{visibility:hidden}
+@media(max-width:700px){.light-toggle{right:16px;bottom:176px;width:36px;height:36px}.light-panel{right:14px;bottom:222px}}
