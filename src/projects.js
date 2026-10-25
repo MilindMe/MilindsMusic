@@ -1,4 +1,5 @@
-// Add an entry here to add another instrument and its project to the rack.
+// Add a project here and a Blender object with entityId="guitar_<id>" to add an instrument.
+// Layout lives in authoring/music-store.blend; model/rotation/hangerWidth describe the source assets.
 // Replace the placeholder copy with your own project information and links.
 export const projects = [
  {

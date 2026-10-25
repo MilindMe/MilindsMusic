@@ -26,3 +26,41 @@
 .memories-page .sidebar{background:#111114d9}.memories-page .music-player{background:#111114a8}
 @media(min-width:701px){.music-player{grid-template-columns:minmax(100px,1fr) minmax(190px,1.5fr) 80px;gap:12px}}
 @media(max-width:700px){.music-player .player-progress{display:flex}.music-player{row-gap:7px}.reset-view{bottom:130px}}
+
+/* Pointer picking follows the guitar mesh; these targets provide keyboard access. */
+.guitar-hit-area{position:absolute;width:48px;height:60px;transform:translate(-50%,-50%);opacity:0;pointer-events:none;border-radius:40%}
+.guitar-hit-area:focus-visible{opacity:1;outline:2px solid #d8be91;outline-offset:6px}
+.loading-screen{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:#303b33;color:#c7b58f;cursor:wait}
+.loading-screen svg{width:86px;height:158px;overflow:visible}
+.loading-outline{fill:none;stroke:#c7b58f;stroke-width:1.4}
+.loading-fill{fill:#c7b58f}
+.loading-hole{fill:#303b33;stroke:#c7b58f;stroke-width:1.2}
+.loading-strings{fill:none;stroke:#303b33;stroke-width:.8}
+.loading-screen rect{transition:y .25s ease,height .25s ease}
+
+.guitar-back{position:absolute;z-index:5;top:max(22px,env(safe-area-inset-top));left:max(28px,env(safe-area-inset-left));display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:5px 0;color:#fff;font-size:13px;font-weight:400;letter-spacing:.04em;text-shadow:0 1px 12px #10201980;transition:opacity .18s}
+.guitar-back span{font-size:21px;line-height:1;transition:transform .18s}
+.guitar-back:hover{opacity:.75}.guitar-back:hover span{transform:translateX(-3px)}
+.is-travelling .guitar-back,.is-travelling .reset-view{visibility:hidden}
+@media(max-width:700px){.guitar-back{top:max(14px,env(safe-area-inset-top));left:max(20px,env(safe-area-inset-left))}}
+
+/* Native image cursor: no tracking element, interpolation, or input latency. */
+@media(hover:hover) and (pointer:fine){html,body,body *{cursor:url('/cursors/orange-circle.svg') 12 12,auto!important}}
+.globe-hit-area{position:absolute;width:48px;height:48px;transform:translate(-50%,-50%);opacity:0;pointer-events:none;border-radius:50%}.globe-hit-area:focus-visible{opacity:1;outline:2px solid #edaa6a;outline-offset:4px}
+.mauritius-beacon{position:absolute;z-index:3;pointer-events:none;transform:translate(-50%,-50%);width:9px;height:9px;border-radius:50%;background:#ff4e4e;box-shadow:0 0 10px #ff3434}
+.mauritius-beacon::before,.mauritius-beacon::after{content:'';position:absolute;inset:-8px;border:1.5px solid #ff6262;border-radius:50%;animation:mauritius-pulse 1.5s ease-out infinite}.mauritius-beacon::after{animation-delay:.75s}
+.mauritius-beacon span{position:absolute;left:18px;top:-6px;padding:5px 8px;border-radius:4px;background:#192f28e8;color:#ffdfbf;font-size:10px;letter-spacing:.06em;white-space:nowrap}
+@keyframes mauritius-pulse{from{transform:scale(.45);opacity:1}to{transform:scale(2.1);opacity:0}}
+@media(prefers-reduced-motion:reduce){.mauritius-beacon::before,.mauritius-beacon::after{animation:none;opacity:.6}}
+
+.globe-hit-area:has(+.mauritius-beacon:not([hidden])){outline:none}
+
+.light-toggle{position:absolute;z-index:4;right:26px;bottom:76px;width:40px;height:40px;display:grid;place-items:center;border:1px solid #bbc7a625;border-radius:50%;background:#20372bb3;color:#d8be91;transition:background .2s}
+.light-toggle:hover{background:#536250}
+.light-panel{position:fixed;inset:auto 26px 126px auto;margin:0;padding:16px 14px;width:176px;border:1px solid #bbc7a640;border-radius:16px;background:#1d3028f5;color:#d8be91;box-shadow:0 8px 25px #07130c60}
+.light-slider-layout{height:154px;display:grid;grid-template-columns:28px 1fr;align-items:stretch;gap:12px}
+.light-slider-layout input{writing-mode:vertical-lr;direction:rtl;width:24px;height:100%;margin:0;accent-color:#d8a76d;cursor:pointer;touch-action:none}
+.light-stop-labels{display:flex;flex-direction:column;justify-content:space-between;padding:2px 0;color:#b9c5b5;font-size:12px}
+.light-stop-labels span{height:18px;display:flex;align-items:center}
+.is-travelling .light-toggle{visibility:hidden}
+@media(max-width:700px){.light-toggle{right:16px;bottom:176px;width:36px;height:36px}.light-panel{right:14px;bottom:222px}}

@@ -13,18 +13,24 @@ npm run dev
 
 Build with `npm run build`; serve with `npm run preview`.
 
+## Blender master
+
+The store layout now lives in [`authoring/music-store.blend`](authoring/music-store.blend). Move objects in Blender, save, run `npm run export:store`, and refresh the website. Stable `entityId` custom properties preserve interactions across object moves and renames. See [the editing guide](authoring/README.md) for groups, cameras, object IDs, and the Blender export button script.
+
 ## Structure
 
 - `src/main.jsx`: icon sidebar, hash navigation, loading/retry states.
-- `src/ShopScene.jsx`: lighting, wooden crates, model loading, camera, and picking.
+- `src/ShopScene.jsx`: master scene loading, ID-based behavior bindings, lighting, cameras, and picking.
+- `authoring/music-store.blend`: editable room, objects, packed textures, and camera views.
+- `public/models/music-store.glb`: exported master scene consumed by the website.
 - `src/styles.css`: fullscreen scene and responsive sidebar.
 - `public/models/vinyl-sleeves.glb`: 18 textured sleeves from the supplied “50+1 vinyls” Blender asset, with textures capped at 768px.
 
-Home contains only the scene and icon controls. The short navigation rail sits halfway down the left edge and expands on hover or keyboard focus; touch devices have an explicit toggle. Home, Projects, Memories, and Resume use hash URLs that support history and refresh. Projects opens the guitar shop; Resume is an empty destination awaiting content. Project descriptions remain marked placeholders until supplied.
+Home contains only the scene and icon controls. The short navigation rail sits halfway down the left edge and expands on hover or keyboard focus; touch devices have an explicit toggle. Home, Projects, Memories, and Resume use hash URLs that support history and refresh. Projects opens the guitar shop; Resume contains a Mauritius origin card and placeholders for experience, education, and skills. Project descriptions remain marked placeholders until supplied.
 
 Drag to look around and reset with the corner icon. Hover an individual sleeve to lift it, then click to open its listening notes. Tab and Enter provide keyboard selection. Escape closes the card and returns focus to the sleeve. Cover images are applied over the supplied sleeve geometry.
 
-The supplied asset contains sleeves and vinyl geometry, not a separate box mesh. The wooden crates and room are built in Three.js. The original asset is untouched. To regenerate the optimized model, extract the source archive alongside its `maps` directory, then run:
+The supplied asset contains sleeves and vinyl geometry, not a separate box mesh. The wooden crates and room were initially built in Three.js and are now editable meshes in the Blender master. The original asset is untouched. To regenerate the optimized model, extract the source archive alongside its `maps` directory, then run:
 
 ```sh
 blender -b '/path/to/50+1 vinyls.blend' --python scripts/export-vinyls.py
@@ -67,9 +73,9 @@ blender -b --python scripts/export-psp.py
 
 The Projects destination loads the supplied Ibanez JEM and acoustic guitar models on a wooden wall rack. Click an instrument to open project details. Invisible focusable controls keep the instruments accessible from the keyboard; the details dialog traps focus, closes with Escape or its close button, and returns focus to the selected instrument.
 
-Edit `src/projects.js` to map each instrument to a project: title, category, summary, description, role, technologies, and optional links (`{label, url}`). Current descriptions are explicitly marked placeholders. Add another entry with a GLB model URL to extend the rack; spacing and camera framing follow the number of instruments. Models should be centered horizontally, stand upright along Y, and measure 1.7 units high with their base at zero. Use `rotation` for any horizontal facing correction and `hangerWidth` to fit a different neck width.
+Edit `src/projects.js` to map each instrument to a project: title, category, summary, description, role, technologies, and optional links (`{label, url}`). Current descriptions are explicitly marked placeholders. To add another instrument, add its project entry and a separate object in the Blender master with `entityId=guitar_<project id>`, then position it and export the room. Models should be centered horizontally, stand upright along Y, and measure 1.7 units high with their base at zero. The legacy source fields `model`, `rotation`, and `hangerWidth` are retained as source-asset metadata; current placement, orientation, and hangers are edited in Blender.
 
-`src/GuitarScene.jsx` owns the rack, lighting, hit testing, and loading. `src/ProjectDetails.jsx` renders the accessible details dialog. Guitars are loaded only when visiting Projects and resources are disposed when leaving.
+`src/ShopScene.jsx` owns the shared room, rack, lighting, hit testing, and loading; `src/GuitarScene.jsx` is a compatibility wrapper for the guitar view. `src/ProjectDetails.jsx` renders the accessible details dialog. Home and Projects share a loaded scene; moving between them animates the camera without reloading the models. Resources are disposed when leaving the room.
 
 The two original assets are converted by `scripts/export-guitars.py`, including reconnecting their supplied textures, correcting orientation, and reducing textures to 1024 pixels. The GLBs total about 2 MB. Regenerate them using Blender:
 
@@ -78,3 +84,25 @@ blender -b --python scripts/export-guitars.py
 ```
 
 The script expects the supplied archives and textures under `~/Desktop/projects/3d_models` and leaves them untouched.
+
+## Shared room and loading screen
+
+The guitars hang between the rear bookshelves and glow softly on hover. Select one from Home to travel to Projects; select it again in the guitar view to open its project card. The guitar camera crops the outside of both bookshelves. The vintage globe sits on a small stand behind the right side of the vinyl counter.
+
+Every route change, including Resume and browser history, shows a neutral green-gray splash with a guitar silhouette filling as model and texture loading completes. A matching HTML placeholder appears before JavaScript starts. Home ↔ Projects transitions play a fast camera flight with a temporary field-of-view pulse, then show the splash before revealing the destination. The white “← Back” link at the top left of Projects flies back to Home. A temporary SVG overlay adds psychedelic guitar outlines, wavy ribbons, rippling contours, and starbursts during these flights; the return flight reverses the expanding shapes. It clears before the splash and is hidden for reduced-motion preferences. Reduced-motion preferences disable the camera animation.
+
+Regenerate the globe from `~/Desktop/projects/3d_models/vintage-globe` with:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender -b --python scripts/export-globe.py
+```
+
+The exporter reconnects the supplied textures, removes the baked shadow card, normalizes the globe to one unit tall, and writes `public/models/globe.glb`.
+
+## Globe journey and cursor
+
+The native orange circle cursor uses a small SVG cursor image, with no JavaScript tracking or trailing animation. Fine pointers get the custom cursor; touch devices retain their normal behavior.
+
+Click the globe (or focus its keyboard target and press Enter) to pulse a red Mauritius regional marker for 4.1 seconds, then fly into the globe with a plane, flight route, globe grid, and tropical island overlay. The guitar loading splash leads into Resume. Escape, selecting another object, camera reset, and route changes cancel the pending trip. Reduced-motion preferences keep the marker static and skip the flight.
+
+The marker uses the lower-right visible globe face as an approximate starting position. For exact placement after Blender edits, add an empty with `entityId=mauritius` on the globe surface and export; the website will use its position. Resume placeholder content lives in `src/ResumePage.jsx`.

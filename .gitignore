@@ -2,3 +2,10 @@ node_modules/
 dist/
 .DS_Store
 *.local
+
+# Blender backup files; the master .blend remains versioned.
+*.blend[0-9]
+
+# Screen Recordings
+.mov
+Screen Recording 2026-10-01 at 12.37.59 am.mov

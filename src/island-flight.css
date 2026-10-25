@@ -1,0 +1,5 @@
+.island-flight{position:fixed;inset:0;z-index:20;pointer-events:none;overflow:hidden;background:linear-gradient(130deg,#245f6120,#1a858530);animation:island-appear .9s ease-out both}
+.island-flight svg{width:100%;height:100%;display:block}.vacation-plane{offset-path:path('M120 620 C200 200 610 650 650 350 S960 175 1110 100');offset-rotate:auto;animation:island-plane .9s cubic-bezier(.25,.2,.55,1) both;filter:drop-shadow(0 4px 5px #173b3840)}
+.vacation-route{animation:island-route .9s linear both}.vacation-sun{color:#f6c65f;fill:#f6c65f}.vacation-island{animation:island-rise .9s ease-out both;transform-origin:700px 635px}.vacation-clouds{animation:island-clouds .9s ease-out both}
+@keyframes island-appear{from{opacity:0}18%,100%{opacity:1}}@keyframes island-plane{from{offset-distance:0%;scale:.6}to{offset-distance:100%;scale:1.25}}@keyframes island-route{from{stroke-dashoffset:90;opacity:0}to{stroke-dashoffset:0;opacity:.85}}@keyframes island-rise{from{opacity:0;translate:0 80px}to{opacity:1;translate:0 0}}@keyframes island-clouds{from{translate:100px 0}to{translate:-90px 0}}
+@media(prefers-reduced-motion:reduce){.island-flight{display:none}}
